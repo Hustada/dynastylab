@@ -23,6 +23,9 @@ export const AISettings: React.FC = () => {
   
   const [showTeamOverrides, setShowTeamOverrides] = useState(false);
   const [selectedConference, setSelectedConference] = useState<string>('all');
+  const [autoApprove, setAutoApprove] = useState(() => {
+    return localStorage.getItem('dynastylab-auto-approve') === 'true';
+  });
   
   // Get upcoming opponents
   const upcomingGames = games
@@ -325,6 +328,44 @@ export const AISettings: React.FC = () => {
           >
             Clear All Overrides
           </button>
+        </div>
+      </div>
+
+      {/* Import Settings */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mt-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center">
+          <span className="text-2xl mr-2">📸</span>
+          Import Settings
+        </h2>
+        
+        <div className="space-y-4">
+          <label className="flex items-start space-x-3 cursor-pointer p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+            <input
+              type="checkbox"
+              checked={autoApprove}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setAutoApprove(newValue);
+                localStorage.setItem('dynastylab-auto-approve', newValue.toString());
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 mt-0.5"
+            />
+            <div className="flex-1">
+              <div className="font-medium">Auto-approve screenshot imports</div>
+              <p className="text-sm text-gray-600 mt-1">
+                Skip the review step and automatically import data from screenshots. 
+                You can always review extracted data in the Import Data page before processing.
+              </p>
+            </div>
+          </label>
+          
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>Note:</strong> When disabled, you'll be able to review all extracted data 
+              before it's imported into your dynasty. This is recommended when first using the 
+              screenshot import feature.
+            </p>
+          </div>
         </div>
       </div>
     </div>

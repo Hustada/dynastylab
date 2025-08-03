@@ -23,6 +23,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/recruits', label: 'Recruits', icon: '⭐' },
     { path: '/timeline', label: 'Timeline', icon: '📖' },
   ];
+  
+  const utilityItems = [
+    { path: '/import', label: 'Import Data', icon: '📸' },
+  ];
 
   return (
     <div className="min-h-screen bg-secondary-50 flex flex-col">
@@ -55,6 +59,35 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="p-4">
             <ul className="space-y-2">
               {navItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center space-x-3 px-4 py-2 rounded-md transition-colors ${
+                        isActive
+                          ? userTeam 
+                            ? 'bg-[var(--team-primary)]/10 text-[var(--team-primary)] font-medium'
+                            : 'bg-primary-100 text-primary-800'
+                          : 'text-secondary-600 hover:bg-secondary-100 hover:text-secondary-900'
+                      }`}
+                    >
+                      <span className="text-xl">{item.icon}</span>
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+              
+              {/* Utility Section */}
+              <li className="mt-6 pt-6 border-t border-secondary-200">
+                <div className="px-4 mb-2">
+                  <span className="text-xs font-semibold text-secondary-500 uppercase tracking-wide">
+                    Utilities
+                  </span>
+                </div>
+              </li>
+              {utilityItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>

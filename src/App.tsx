@@ -12,6 +12,7 @@ import { NewsHub } from './components/NewsHub';
 import { FanForum } from './components/FanForum';
 import { AISettings } from './components/AISettings';
 import { AIFeatureTest } from './components/AIFeatureTest';
+import { ScreenshotUpload } from './components/ScreenshotUpload';
 import { useEffect } from 'react';
 import { useTeamStore } from './stores/teamStore';
 import { useSeasonStore } from './stores/seasonStore';
@@ -97,6 +98,7 @@ function App() {
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/ai-settings" element={<AISettings />} />
           <Route path="/ai-test" element={<AIFeatureTest />} />
+          <Route path="/import" element={<ScreenshotUpload />} />
         </Routes>
       </Layout>
     </Router>

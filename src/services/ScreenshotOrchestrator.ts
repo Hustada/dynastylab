@@ -715,10 +715,14 @@ export class ScreenshotOrchestrator {
     
     const triggers = {
       'game-result': () => {
-        if (data.result && (data.marginOfVictory > 20 || data.upsetVictory)) {
+        const margin = data.marginOfVictory || data.margin_of_victory;
+        const upset = data.upsetVictory || data.upset_victory;
+        const result = data.result;
+        
+        if (result && (margin > 20 || upset)) {
           this.log('🎉 Significant game detected!', {
-            margin: data.marginOfVictory,
-            upset: data.upsetVictory
+            margin,
+            upset
           });
           this.log('✨ Triggering article generation for significant game result');
           generatedContent.push('game-recap');
@@ -726,8 +730,9 @@ export class ScreenshotOrchestrator {
         }
       },
       'season-standings': () => {
-        if (data.ranking && data.ranking <= 25) {
-          this.log('🏆 Top 25 ranking detected!', { ranking: data.ranking });
+        const ranking = data.ranking || data.current_ranking;
+        if (ranking && ranking <= 25) {
+          this.log('🏆 Top 25 ranking detected!', { ranking });
           this.log('✨ Triggering content for ranking update');
           generatedContent.push('ranking-analysis');
           // TODO: Actually queue content generation
@@ -742,12 +747,22 @@ export class ScreenshotOrchestrator {
         }
       },
       'player-stats': () => {
-        if (data.seasonStats && (
-          data.seasonStats.touchdowns > 20 || 
-          data.seasonStats.passingYards > 3000 ||
-          data.seasonStats.rushingYards > 1000
-        )) {
-          this.log('🌟 Outstanding player performance detected!');
+        const stats = data.seasonStats || data.season_stats || data.statistics || {};
+        const touchdowns = stats.touchdowns || stats.tds || stats.receiving_tds || stats.passing_tds || 0;
+        const passingYards = stats.passingYards || stats.passing_yards || 0;
+        const rushingYards = stats.rushingYards || stats.rushing_yards || 0;
+        const receivingYards = stats.receivingYards || stats.receiving_yards || stats.yards || 0;
+        
+        if (touchdowns > 10 || 
+            passingYards > 3000 ||
+            rushingYards > 1000 ||
+            receivingYards > 1000) {
+          this.log('🌟 Outstanding player performance detected!', {
+            touchdowns,
+            passingYards,
+            rushingYards,
+            receivingYards
+          });
           this.log('✨ Triggering player spotlight article');
           generatedContent.push('player-spotlight');
           // TODO: Actually queue content generation

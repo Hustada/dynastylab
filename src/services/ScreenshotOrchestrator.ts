@@ -382,12 +382,22 @@ export class ScreenshotOrchestrator {
         - Current week if highlighted
         Return as JSON array of games.`,
       
-      'roster-overview': `Extract roster information:
-        - Top players by position
-        - Overall ratings
-        - Class year (FR/SO/JR/SR)
-        - Key attributes if visible
-        Return as JSON array of players.`,
+      'roster-overview': `Extract player information from this roster screen:
+        For the featured/highlighted player (if one is prominently shown):
+        - Name (exactly as displayed)
+        - Jersey number
+        - Position
+        - Overall rating
+        - Statistics (receptions, yards, TDs, etc.)
+        
+        For other visible players in the list:
+        - Names
+        - Positions
+        - Jersey numbers
+        - Ratings
+        
+        IMPORTANT: Extract actual names and stats visible on screen.
+        Return as JSON with featured player and roster list.`,
       
       'depth-chart': `Extract depth chart:
         - Position groups
@@ -422,12 +432,16 @@ export class ScreenshotOrchestrator {
         - Poll type (AP, Coaches, CFP)
         Return as JSON array.`,
       
-      'player-stats': `Extract individual player statistics:
-        - Player name and position
-        - Season/career stats
-        - Key performance metrics
-        - Awards or milestones
-        Return as JSON.`,
+      'player-stats': `Extract the featured player's information from this screen:
+        - Player name (exactly as shown)
+        - Jersey number
+        - Position (WR, HB, TE, etc.)
+        - Overall rating if visible
+        - Statistics shown (receptions, yards, touchdowns, etc.)
+        - Archetype if shown (Deep Threat, etc.)
+        
+        IMPORTANT: Extract the actual data visible on screen, not example data.
+        Return as JSON with the exact values you can see.`,
       
       'unknown': 'Unable to determine extraction requirements.'
     };
@@ -436,8 +450,11 @@ export class ScreenshotOrchestrator {
     
     // If unknown screen type, return empty data
     if (screenType === 'unknown') {
+      this.log('⚠️ Unknown screen type, returning empty data');
       return {};
     }
+
+    this.log(`📋 Starting extraction for ${screenType} screen`);
 
     try {
       // Check if we're in development mode or if API key is missing
@@ -446,6 +463,8 @@ export class ScreenshotOrchestrator {
         this.log('⚠️ No OpenAI API key found, using mock data for extraction');
         return this.getMockDataForScreenType(screenType);
       }
+      
+      this.log('✅ API key found, proceeding with real extraction');
 
       // Convert image URL to base64 if it's a blob URL
       let base64Image = imageUrl;
@@ -538,13 +557,18 @@ export class ScreenshotOrchestrator {
 
       // Fallback to mock data if extraction fails
       this.log('⚠️ Falling back to mock data due to extraction failure');
-      return this.getMockDataForScreenType(screenType);
+      this.log('📊 Returning mock data for:', screenType);
+      const mockData = this.getMockDataForScreenType(screenType);
+      this.log('Mock data being returned:', mockData);
+      return mockData;
 
     } catch (error) {
       this.log('❌ Error extracting data', error);
       // Fallback to mock data
-      this.log('⚠️ Using mock data as fallback');
-      return this.getMockDataForScreenType(screenType);
+      this.log('⚠️ Using mock data as fallback due to error');
+      const mockData = this.getMockDataForScreenType(screenType);
+      this.log('Mock data being returned:', mockData);
+      return mockData;
     }
   }
 

@@ -186,9 +186,9 @@ export class ScreenshotOrchestrator {
         base64Image = await this.blobToBase64(blob);
       }
 
-      // Call GPT-4 Vision
+      // Call GPT-4o (latest vision model)
       const response = await openai.chat.completions.create({
-        model: "gpt-4-vision-preview",
+        model: "gpt-4o",
         messages: [
           {
             role: "user",
@@ -341,9 +341,80 @@ export class ScreenshotOrchestrator {
 
     const prompt = extractionPrompts[screenType];
     
-    // In production, this would use GPT-4 Vision
-    // For now, return mock data based on screen type
-    return this.getMockDataForScreenType(screenType);
+    // If unknown screen type, return empty data
+    if (screenType === 'unknown') {
+      return {};
+    }
+
+    try {
+      // Check if we're in development mode or if API key is missing
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey || apiKey === 'demo-key') {
+        console.warn('No OpenAI API key found, using mock data for extraction');
+        return this.getMockDataForScreenType(screenType);
+      }
+
+      // Convert image URL to base64 if it's a blob URL
+      let base64Image = imageUrl;
+      if (imageUrl.startsWith('blob:')) {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        base64Image = await this.blobToBase64(blob);
+      }
+
+      // Call GPT-4o for data extraction
+      const fullPrompt = detectedTeam 
+        ? `For the team "${detectedTeam}", ${prompt}`
+        : prompt;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: fullPrompt },
+              { 
+                type: "image_url", 
+                image_url: {
+                  url: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000
+      });
+
+      const result = response.choices[0].message.content;
+      if (result) {
+        try {
+          // Try to parse the JSON response
+          const parsed = JSON.parse(result);
+          return parsed;
+        } catch (e) {
+          console.error('Failed to parse extraction response:', e);
+          // Try to extract JSON from the response if it's wrapped in text
+          const jsonMatch = result.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+          if (jsonMatch) {
+            try {
+              return JSON.parse(jsonMatch[0]);
+            } catch (e2) {
+              console.error('Failed to extract JSON from response:', e2);
+            }
+          }
+        }
+      }
+
+      // Fallback to mock data if extraction fails
+      console.warn('Falling back to mock data due to extraction failure');
+      return this.getMockDataForScreenType(screenType);
+
+    } catch (error) {
+      console.error('Error extracting data:', error);
+      // Fallback to mock data
+      return this.getMockDataForScreenType(screenType);
+    }
   }
 
   // Route extracted data to appropriate stores

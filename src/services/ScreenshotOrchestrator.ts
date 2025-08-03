@@ -265,8 +265,25 @@ export class ScreenshotOrchestrator {
       const result = response.choices[0].message.content;
       if (result) {
         this.log('📝 Raw response:', result);
+        
+        // Clean up the response - remove markdown code blocks if present
+        let cleanedResult = result.trim();
+        
+        // Remove ```json and ``` markers if present
+        if (cleanedResult.startsWith('```json')) {
+          cleanedResult = cleanedResult.substring(7);
+        } else if (cleanedResult.startsWith('```')) {
+          cleanedResult = cleanedResult.substring(3);
+        }
+        
+        if (cleanedResult.endsWith('```')) {
+          cleanedResult = cleanedResult.substring(0, cleanedResult.length - 3);
+        }
+        
+        cleanedResult = cleanedResult.trim();
+        
         try {
-          const parsed = JSON.parse(result);
+          const parsed = JSON.parse(cleanedResult);
           this.log('✅ Response parsed successfully', parsed);
           return {
             screenType: parsed.screenType || 'unknown',
@@ -275,6 +292,22 @@ export class ScreenshotOrchestrator {
           };
         } catch (e) {
           this.log('⚠️ Failed to parse GPT-4 response', e);
+          
+          // Try to extract JSON using regex as last resort
+          const jsonMatch = result.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              this.log('✅ Extracted JSON from response', parsed);
+              return {
+                screenType: parsed.screenType || 'unknown',
+                confidence: parsed.confidence || 0.5,
+                detectedTeam: parsed.detectedTeam || null
+              };
+            } catch (e2) {
+              this.log('❌ Failed to extract JSON', e2);
+            }
+          }
         }
       }
 
@@ -462,17 +495,34 @@ export class ScreenshotOrchestrator {
       const result = response.choices[0].message.content;
       if (result) {
         this.log('📝 Raw extraction response:', result.substring(0, 200) + '...');
+        
+        // Clean up the response - remove markdown code blocks if present
+        let cleanedResult = result.trim();
+        
+        // Remove ```json and ``` markers if present
+        if (cleanedResult.startsWith('```json')) {
+          cleanedResult = cleanedResult.substring(7);
+        } else if (cleanedResult.startsWith('```')) {
+          cleanedResult = cleanedResult.substring(3);
+        }
+        
+        if (cleanedResult.endsWith('```')) {
+          cleanedResult = cleanedResult.substring(0, cleanedResult.length - 3);
+        }
+        
+        cleanedResult = cleanedResult.trim();
+        
         try {
-          // Try to parse the JSON response
-          const parsed = JSON.parse(result);
+          // Try to parse the cleaned JSON response
+          const parsed = JSON.parse(cleanedResult);
           this.log('✅ Extraction parsed successfully', {
             dataType: typeof parsed,
-            keys: Object.keys(parsed).slice(0, 5)
+            keys: Array.isArray(parsed) ? `Array(${parsed.length})` : Object.keys(parsed).slice(0, 5)
           });
           return parsed;
         } catch (e) {
           this.log('⚠️ Failed to parse extraction response, attempting JSON extraction', e);
-          // Try to extract JSON from the response if it's wrapped in text
+          // Try to extract JSON from the original response if it's wrapped in text
           const jsonMatch = result.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
           if (jsonMatch) {
             try {
@@ -763,6 +813,29 @@ export class ScreenshotOrchestrator {
       'depth-chart': {},
       'team-stats': {},
       'trophy-case': {},
+      'top25-rankings': [
+        { rank: 1, team: 'Georgia', record: '10-0', points: 1500 },
+        { rank: 2, team: 'Michigan', record: '10-0', points: 1445 },
+        { rank: 3, team: 'Washington', record: '9-1', points: 1388 }
+      ],
+      'player-stats': {
+        name: 'Michael Penix Jr.',
+        position: 'QB',
+        jerseyNumber: 9,
+        seasonStats: {
+          passingYards: 3899,
+          touchdowns: 32,
+          completions: 276,
+          attempts: 421,
+          completionPercentage: 65.6,
+          qbRating: 158.7
+        },
+        careerStats: {
+          passingYards: 12000,
+          touchdowns: 95,
+          gamesPlayed: 35
+        }
+      },
       'unknown': {}
     };
 

@@ -17,13 +17,19 @@ export function ImportSuccess({ isOpen, onClose, results }: ImportSuccessProps) 
   // Calculate statistics
   const stats = {
     totalScreenshots: results.length,
-    playersImported: results.filter(r => r.analysis.screenType === 'roster-overview')
-      .reduce((acc, r) => acc + (Array.isArray(r.analysis.extractedData) ? r.analysis.extractedData.length : 0), 0),
+    playersImported: results.filter(r => 
+      r.analysis.screenType === 'roster-overview' || 
+      r.analysis.screenType === 'player-stats'
+    ).reduce((acc, r) => {
+      if (r.analysis.screenType === 'player-stats') return acc + 1;
+      return acc + (Array.isArray(r.analysis.extractedData) ? r.analysis.extractedData.length : 0);
+    }, 0),
     gamesImported: results.filter(r => r.analysis.screenType === 'game-result' || r.analysis.screenType === 'schedule')
       .reduce((acc, r) => acc + (Array.isArray(r.analysis.extractedData) ? r.analysis.extractedData.length : 1), 0),
     recruitsImported: results.filter(r => r.analysis.screenType === 'recruiting-board')
       .reduce((acc, r) => acc + (r.analysis.extractedData?.commits?.length || 0), 0),
-    screenTypes: [...new Set(results.map(r => r.analysis.screenType))]
+    screenTypes: [...new Set(results.map(r => r.analysis.screenType))],
+    generatedContent: results.flatMap(r => r.analysis.generatedContent || [])
   };
 
   const getScreenTypeIcon = (type: string) => {
@@ -123,9 +129,15 @@ export function ImportSuccess({ isOpen, onClose, results }: ImportSuccessProps) 
           <div className="p-4 bg-blue-50 rounded-lg mb-6">
             <h3 className="text-sm font-semibold text-blue-900 mb-2">Next Steps:</h3>
             <div className="space-y-2 text-sm text-blue-700">
-              {stats.playersImported > 0 && (
+              {/* Show relevant navigation based on imported data */}
+              {stats.screenTypes.includes('player-stats') && (
                 <Link to="/players" className="block hover:text-blue-900">
-                  → View your imported players in the Players section
+                  → View your player stats in the Players section
+                </Link>
+              )}
+              {stats.playersImported > 0 && !stats.screenTypes.includes('player-stats') && (
+                <Link to="/players" className="block hover:text-blue-900">
+                  → View your imported roster in the Players section
                 </Link>
               )}
               {stats.gamesImported > 0 && (
@@ -138,9 +150,54 @@ export function ImportSuccess({ isOpen, onClose, results }: ImportSuccessProps) 
                   → Review your recruiting class in the Recruits section
                 </Link>
               )}
-              <Link to="/news" className="block hover:text-blue-900">
-                → Read AI-generated news about your imported data
-              </Link>
+              {stats.screenTypes.includes('season-standings') && (
+                <Link to="/" className="block hover:text-blue-900">
+                  → View updated standings on the Dashboard
+                </Link>
+              )}
+              {stats.screenTypes.includes('depth-chart') && (
+                <Link to="/depth-chart" className="block hover:text-blue-900">
+                  → Check your updated depth chart
+                </Link>
+              )}
+              
+              {/* Only show AI news link if content was generated */}
+              {stats.generatedContent.length > 0 && (
+                <>
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <p className="text-xs text-blue-600 font-semibold mb-2">
+                      🎉 AI Content Generated:
+                    </p>
+                    {stats.generatedContent.includes('game-recap') && (
+                      <Link to="/news" className="block hover:text-blue-900">
+                        → Read game recap article
+                      </Link>
+                    )}
+                    {stats.generatedContent.includes('player-spotlight') && (
+                      <Link to="/news" className="block hover:text-blue-900">
+                        → Read player spotlight article
+                      </Link>
+                    )}
+                    {stats.generatedContent.includes('recruiting-update') && (
+                      <Link to="/news" className="block hover:text-blue-900">
+                        → Read recruiting news update
+                      </Link>
+                    )}
+                    {stats.generatedContent.includes('ranking-analysis') && (
+                      <Link to="/news" className="block hover:text-blue-900">
+                        → Read ranking analysis
+                      </Link>
+                    )}
+                  </div>
+                </>
+              )}
+              
+              {/* If no content was generated, don't mislead the user */}
+              {stats.generatedContent.length === 0 && (
+                <p className="text-xs text-gray-500 italic mt-3">
+                  No AI content triggers met for this import
+                </p>
+              )}
             </div>
           </div>
 

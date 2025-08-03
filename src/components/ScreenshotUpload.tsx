@@ -214,20 +214,35 @@ export function ScreenshotUpload() {
   };
   
   const confirmDataImport = async (results: Array<{ fileName: string; analysis: ScreenshotAnalysisResult }>) => {
-    // Route all the data
-    for (const result of results) {
-      await orchestrator.routeExtractedData(result.analysis.screenType, result.analysis.extractedData);
-    }
+    // Route all the data and collect generated content
+    const updatedResults = await Promise.all(results.map(async (result) => {
+      const generatedContent = await orchestrator.routeExtractedData(
+        result.analysis.screenType, 
+        result.analysis.extractedData
+      );
+      
+      // Update the analysis with generated content info
+      return {
+        ...result,
+        analysis: {
+          ...result.analysis,
+          generatedContent
+        }
+      };
+    }));
     
     // Clear uploaded files after successful import
     setUploadedFiles([]);
     setShowReviewModal(false);
     
-    // Show success modal
-    setImportedResults(results);
+    // Show success modal with updated results
+    setImportedResults(updatedResults);
     setShowSuccessModal(true);
     
-    console.log('Data imported successfully!');
+    console.log('Data imported successfully!', {
+      totalImported: updatedResults.length,
+      contentGenerated: updatedResults.flatMap(r => r.analysis.generatedContent || [])
+    });
   };
   
   const handleReject = () => {

@@ -34,6 +34,7 @@ export interface ScreenshotAnalysisResult {
   detectedTeam?: string;
   suggestedActions: string[];
   relatedScreens?: ScreenType[];
+  generatedContent?: string[];
 }
 
 export interface OrchestratorEvent {
@@ -115,6 +116,9 @@ export class ScreenshotOrchestrator {
         timestamp: new Date()
       });
 
+      // Track generated content
+      let generatedContent: string[] = [];
+      
       // Only route data if not skipping (for review mode)
       if (!skipRouting) {
         // Step 3: Route data to appropriate stores
@@ -131,12 +135,18 @@ export class ScreenshotOrchestrator {
 
         // Step 4: Trigger content generation if needed
         this.log('✨ Step 4: Checking for content generation triggers...');
-        await this.triggerContentGeneration(screenType.screenType, extractedData);
+        generatedContent = await this.triggerContentGeneration(screenType.screenType, extractedData);
+        
+        if (generatedContent.length > 0) {
+          this.log('📰 Content generation queued:', generatedContent);
+        }
         
         this.emit({
           type: 'content-triggered',
           screenType: screenType.screenType,
-          message: `Content generation triggered`,
+          message: generatedContent.length > 0 
+            ? `Content generation triggered: ${generatedContent.join(', ')}`
+            : 'No content triggers met',
           timestamp: new Date()
         });
       } else {
@@ -149,7 +159,8 @@ export class ScreenshotOrchestrator {
         extractedData,
         detectedTeam: screenType.detectedTeam,
         suggestedActions: this.getSuggestedActions(screenType.screenType),
-        relatedScreens: this.getRelatedScreens(screenType.screenType)
+        relatedScreens: this.getRelatedScreens(screenType.screenType),
+        generatedContent
       };
       
       this.log('🎉 Processing complete!', {
@@ -171,9 +182,10 @@ export class ScreenshotOrchestrator {
   }
   
   // Public method to route data after review
-  public async routeExtractedData(screenType: ScreenType, data: any): Promise<void> {
+  public async routeExtractedData(screenType: ScreenType, data: any): Promise<string[]> {
     await this.routeData(screenType, data);
-    await this.triggerContentGeneration(screenType, data);
+    const generatedContent = await this.triggerContentGeneration(screenType, data);
+    return generatedContent;
   }
 
   // Identify what type of screen this is
@@ -617,6 +629,33 @@ export class ScreenshotOrchestrator {
         }
         break;
       
+      case 'player-stats':
+        const playerStatsStore = usePlayerStore.getState();
+        if (data.name) {
+          this.log('🏈 Adding individual player stats', {
+            name: data.name,
+            position: data.position,
+            jersey: data.jerseyNumber
+          });
+          // Convert player-stats format to Player format
+          const player: Player = {
+            id: `player-${Date.now()}`,
+            name: data.name,
+            position: data.position,
+            jerseyNumber: data.jerseyNumber || 0,
+            overall: data.overall || 85,
+            year: data.year || 'JR',
+            height: data.height || "6'0\"",
+            weight: data.weight || 200,
+            hometown: data.hometown || 'Unknown',
+            highSchool: data.highSchool || 'Unknown',
+            stats: data.seasonStats || {},
+            teamId: data.teamId || 'washington'
+          };
+          playerStatsStore.addPlayer(player);
+        }
+        break;
+      
       case 'recruiting-board':
         const recruitStore = useRecruitStore.getState();
         if (data.commits) {
@@ -642,7 +681,9 @@ export class ScreenshotOrchestrator {
   }
 
   // Trigger AI content generation based on significant events
-  private async triggerContentGeneration(screenType: ScreenType, data: any): Promise<void> {
+  private async triggerContentGeneration(screenType: ScreenType, data: any): Promise<string[]> {
+    const generatedContent: string[] = [];
+    
     const triggers = {
       'game-result': () => {
         if (data.result && (data.marginOfVictory > 20 || data.upsetVictory)) {
@@ -651,24 +692,52 @@ export class ScreenshotOrchestrator {
             upset: data.upsetVictory
           });
           this.log('✨ Triggering article generation for significant game result');
+          generatedContent.push('game-recap');
+          // TODO: Actually queue content generation
         }
       },
       'season-standings': () => {
-        if (data.ranking && data.ranking <= 10) {
-          this.log('🏆 Top 10 ranking detected!', { ranking: data.ranking });
-          this.log('✨ Triggering content for top 10 ranking');
+        if (data.ranking && data.ranking <= 25) {
+          this.log('🏆 Top 25 ranking detected!', { ranking: data.ranking });
+          this.log('✨ Triggering content for ranking update');
+          generatedContent.push('ranking-analysis');
+          // TODO: Actually queue content generation
         }
       },
       'recruiting-board': () => {
-        if (data.fiveStarCommit) {
-          this.log('⭐⭐⭐⭐⭐ 5-star commit detected!');
-          this.log('✨ Triggering content for 5-star commit');
+        if (data.commits?.some((r: any) => r.stars >= 4)) {
+          this.log('⭐ 4+ star commit detected!');
+          this.log('✨ Triggering recruiting article');
+          generatedContent.push('recruiting-update');
+          // TODO: Actually queue content generation
+        }
+      },
+      'player-stats': () => {
+        if (data.seasonStats && (
+          data.seasonStats.touchdowns > 20 || 
+          data.seasonStats.passingYards > 3000 ||
+          data.seasonStats.rushingYards > 1000
+        )) {
+          this.log('🌟 Outstanding player performance detected!');
+          this.log('✨ Triggering player spotlight article');
+          generatedContent.push('player-spotlight');
+          // TODO: Actually queue content generation
         }
       },
       'coach-info': () => {
         if (data.hotSeat === true) {
           this.log('🔥 Hot seat situation detected!');
           this.log('✨ Triggering hot seat discussion content');
+          generatedContent.push('hot-seat-analysis');
+          // TODO: Actually queue content generation
+        }
+      },
+      'trophy-case': () => {
+        if (data.championships?.length > 0 || data.bowlVictories?.length > 0) {
+          this.log('🏆 Championship/Bowl victory detected!');
+          this.log('✨ Triggering celebration content');
+          generatedContent.push('championship-celebration');
+          // TODO: Actually queue content generation
         }
       }
     };
@@ -679,6 +748,8 @@ export class ScreenshotOrchestrator {
     } else {
       this.log(`ℹ️ No content triggers for ${screenType}`);
     }
+    
+    return generatedContent;
   }
 
   // Get suggested next actions based on current screen

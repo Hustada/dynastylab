@@ -49,9 +49,20 @@ type EventCallback = (event: OrchestratorEvent) => void;
 
 export class ScreenshotOrchestrator {
   private eventCallbacks: EventCallback[] = [];
+  private isDev = import.meta.env.DEV;
 
   constructor() {
-    console.log('Screenshot Orchestrator initialized');
+    console.log('🎬 Screenshot Orchestrator initialized');
+    if (this.isDev) {
+      console.log('📊 Running in development mode - verbose logging enabled');
+    }
+  }
+  
+  private log(message: string, data?: any) {
+    if (this.isDev) {
+      const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+      console.log(`[${timestamp}] 📸 ${message}`, data || '');
+    }
   }
 
   // Subscribe to orchestrator events
@@ -68,9 +79,18 @@ export class ScreenshotOrchestrator {
 
   // Main orchestration method
   public async processScreenshot(imageUrl: string, skipRouting: boolean = false): Promise<ScreenshotAnalysisResult> {
+    this.log('🚀 Starting screenshot processing', { skipRouting });
+    
     try {
       // Step 1: Identify screen type
+      this.log('🔍 Step 1: Identifying screen type...');
       const screenType = await this.identifyScreenType(imageUrl);
+      this.log('✅ Screen identified', {
+        type: screenType.screenType,
+        confidence: `${(screenType.confidence * 100).toFixed(1)}%`,
+        team: screenType.detectedTeam || 'Not detected'
+      });
+      
       this.emit({
         type: 'screen-identified',
         screenType: screenType.screenType,
@@ -79,7 +99,14 @@ export class ScreenshotOrchestrator {
       });
 
       // Step 2: Extract data based on screen type
+      this.log('📊 Step 2: Extracting data from screenshot...');
       const extractedData = await this.extractDataForScreenType(imageUrl, screenType.screenType, screenType.detectedTeam);
+      this.log('✅ Data extracted', {
+        screenType: screenType.screenType,
+        dataKeys: Object.keys(extractedData),
+        itemCount: Array.isArray(extractedData) ? extractedData.length : undefined
+      });
+      
       this.emit({
         type: 'data-extracted',
         screenType: screenType.screenType,
@@ -91,7 +118,10 @@ export class ScreenshotOrchestrator {
       // Only route data if not skipping (for review mode)
       if (!skipRouting) {
         // Step 3: Route data to appropriate stores
+        this.log('🚚 Step 3: Routing data to stores...');
         await this.routeData(screenType.screenType, extractedData);
+        this.log('✅ Data routed successfully');
+        
         this.emit({
           type: 'data-routed',
           screenType: screenType.screenType,
@@ -100,16 +130,20 @@ export class ScreenshotOrchestrator {
         });
 
         // Step 4: Trigger content generation if needed
+        this.log('✨ Step 4: Checking for content generation triggers...');
         await this.triggerContentGeneration(screenType.screenType, extractedData);
+        
         this.emit({
           type: 'content-triggered',
           screenType: screenType.screenType,
           message: `Content generation triggered`,
           timestamp: new Date()
         });
+      } else {
+        this.log('⏸️ Skipping data routing (review mode)');
       }
 
-      return {
+      const result = {
         screenType: screenType.screenType,
         confidence: screenType.confidence,
         extractedData,
@@ -117,7 +151,16 @@ export class ScreenshotOrchestrator {
         suggestedActions: this.getSuggestedActions(screenType.screenType),
         relatedScreens: this.getRelatedScreens(screenType.screenType)
       };
+      
+      this.log('🎉 Processing complete!', {
+        screenType: result.screenType,
+        confidence: `${(result.confidence * 100).toFixed(1)}%`,
+        suggestedActions: result.suggestedActions.length
+      });
+      
+      return result;
     } catch (error) {
+      this.log('❌ Error processing screenshot', error);
       this.emit({
         type: 'error',
         message: `Error processing screenshot: ${error}`,
@@ -135,6 +178,8 @@ export class ScreenshotOrchestrator {
 
   // Identify what type of screen this is
   private async identifyScreenType(imageUrl: string): Promise<{ screenType: ScreenType; confidence: number; detectedTeam?: string }> {
+    this.log('🤖 Calling GPT-4o for screen identification...');
+    
     const prompt = `Analyze this CFB 25 screenshot and identify:
     1. What type of screen this is
     2. What team is shown (if visible)
@@ -170,7 +215,7 @@ export class ScreenshotOrchestrator {
       // Check if we're in development mode or if API key is missing
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey || apiKey === 'demo-key') {
-        console.warn('No OpenAI API key found, using mock data');
+        this.log('⚠️ No OpenAI API key found, using mock data');
         return {
           screenType: 'roster-overview',
           confidence: 0.92,
@@ -181,12 +226,17 @@ export class ScreenshotOrchestrator {
       // Convert image URL to base64 if it's a blob URL
       let base64Image = imageUrl;
       if (imageUrl.startsWith('blob:')) {
+        this.log('📦 Converting blob URL to base64...');
         const response = await fetch(imageUrl);
         const blob = await response.blob();
         base64Image = await this.blobToBase64(blob);
+        this.log('✅ Image converted', { size: `${(blob.size / 1024).toFixed(1)}KB` });
       }
 
       // Call GPT-4o (latest vision model)
+      this.log('📡 Sending request to OpenAI GPT-4o...');
+      const startTime = Date.now();
+      
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -205,22 +255,31 @@ export class ScreenshotOrchestrator {
         ],
         max_tokens: 300
       });
+      
+      const responseTime = Date.now() - startTime;
+      this.log('✅ GPT-4o response received', { 
+        responseTime: `${responseTime}ms`,
+        tokensUsed: response.usage?.total_tokens 
+      });
 
       const result = response.choices[0].message.content;
       if (result) {
+        this.log('📝 Raw response:', result);
         try {
           const parsed = JSON.parse(result);
+          this.log('✅ Response parsed successfully', parsed);
           return {
             screenType: parsed.screenType || 'unknown',
             confidence: parsed.confidence || 0.5,
             detectedTeam: parsed.detectedTeam || null
           };
         } catch (e) {
-          console.error('Failed to parse GPT-4 response:', e);
+          this.log('⚠️ Failed to parse GPT-4 response', e);
         }
       }
 
       // Fallback if parsing fails
+      this.log('⚠️ Using fallback response');
       return {
         screenType: 'unknown',
         confidence: 0.5,
@@ -228,8 +287,9 @@ export class ScreenshotOrchestrator {
       };
 
     } catch (error) {
-      console.error('Error identifying screen type:', error);
+      this.log('❌ Error identifying screen type', error);
       // Fallback to mock data for testing
+      this.log('⚠️ Falling back to mock data');
       return {
         screenType: 'roster-overview',
         confidence: 0.92,
@@ -350,13 +410,14 @@ export class ScreenshotOrchestrator {
       // Check if we're in development mode or if API key is missing
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey || apiKey === 'demo-key') {
-        console.warn('No OpenAI API key found, using mock data for extraction');
+        this.log('⚠️ No OpenAI API key found, using mock data for extraction');
         return this.getMockDataForScreenType(screenType);
       }
 
       // Convert image URL to base64 if it's a blob URL
       let base64Image = imageUrl;
       if (imageUrl.startsWith('blob:')) {
+        this.log('📦 Converting blob URL to base64 for extraction...');
         const response = await fetch(imageUrl);
         const blob = await response.blob();
         base64Image = await this.blobToBase64(blob);
@@ -366,7 +427,13 @@ export class ScreenshotOrchestrator {
       const fullPrompt = detectedTeam 
         ? `For the team "${detectedTeam}", ${prompt}`
         : prompt;
-
+      
+      this.log('🤖 Calling GPT-4o for data extraction...', {
+        screenType,
+        team: detectedTeam || 'No team context'
+      });
+      
+      const startTime = Date.now();
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -385,44 +452,65 @@ export class ScreenshotOrchestrator {
         ],
         max_tokens: 1000
       });
+      
+      const responseTime = Date.now() - startTime;
+      this.log('✅ GPT-4o extraction response received', {
+        responseTime: `${responseTime}ms`,
+        tokensUsed: response.usage?.total_tokens
+      });
 
       const result = response.choices[0].message.content;
       if (result) {
+        this.log('📝 Raw extraction response:', result.substring(0, 200) + '...');
         try {
           // Try to parse the JSON response
           const parsed = JSON.parse(result);
+          this.log('✅ Extraction parsed successfully', {
+            dataType: typeof parsed,
+            keys: Object.keys(parsed).slice(0, 5)
+          });
           return parsed;
         } catch (e) {
-          console.error('Failed to parse extraction response:', e);
+          this.log('⚠️ Failed to parse extraction response, attempting JSON extraction', e);
           // Try to extract JSON from the response if it's wrapped in text
           const jsonMatch = result.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
           if (jsonMatch) {
             try {
-              return JSON.parse(jsonMatch[0]);
+              const extracted = JSON.parse(jsonMatch[0]);
+              this.log('✅ Successfully extracted JSON from response');
+              return extracted;
             } catch (e2) {
-              console.error('Failed to extract JSON from response:', e2);
+              this.log('❌ Failed to extract JSON from response', e2);
             }
           }
         }
       }
 
       // Fallback to mock data if extraction fails
-      console.warn('Falling back to mock data due to extraction failure');
+      this.log('⚠️ Falling back to mock data due to extraction failure');
       return this.getMockDataForScreenType(screenType);
 
     } catch (error) {
-      console.error('Error extracting data:', error);
+      this.log('❌ Error extracting data', error);
       // Fallback to mock data
+      this.log('⚠️ Using mock data as fallback');
       return this.getMockDataForScreenType(screenType);
     }
   }
 
   // Route extracted data to appropriate stores
   private async routeData(screenType: ScreenType, data: any): Promise<void> {
+    this.log(`🚚 Routing ${screenType} data to stores...`);
+    
     switch (screenType) {
       case 'season-standings':
         const seasonStore = useSeasonStore.getState();
         if (data.overallRecord) {
+          this.log('📊 Updating season standings', {
+            overall: `${data.overallRecord.wins}-${data.overallRecord.losses}`,
+            conference: data.conferenceRecord ? `${data.conferenceRecord.wins}-${data.conferenceRecord.losses}` : 'N/A',
+            ranking: data.ranking || 'Unranked'
+          });
           seasonStore.updateCurrentSeason({
             overallRecord: data.overallRecord,
             conferenceRecord: data.conferenceRecord,
@@ -435,8 +523,13 @@ export class ScreenshotOrchestrator {
       case 'schedule':
         const gameStore = useGameStore.getState();
         if (Array.isArray(data)) {
+          this.log(`🏈 Adding ${data.length} games to store`);
           data.forEach((game: Game) => gameStore.addGame(game));
         } else if (data.gameId) {
+          this.log('🏈 Adding single game result', { 
+            opponent: data.opponent,
+            score: `${data.score?.for || 0}-${data.score?.against || 0}`
+          });
           gameStore.addGame(data);
         }
         break;
@@ -445,6 +538,7 @@ export class ScreenshotOrchestrator {
       case 'depth-chart':
         const playerStore = usePlayerStore.getState();
         if (Array.isArray(data)) {
+          this.log(`👥 Adding ${data.length} players to store`);
           data.forEach((player: Player) => playerStore.addPlayer(player));
         }
         break;
@@ -452,6 +546,7 @@ export class ScreenshotOrchestrator {
       case 'recruiting-board':
         const recruitStore = useRecruitStore.getState();
         if (data.commits) {
+          this.log(`⭐ Adding ${data.commits.length} recruits to store`);
           data.commits.forEach((recruit: Recruit) => recruitStore.addRecruit(recruit));
         }
         break;
@@ -459,9 +554,16 @@ export class ScreenshotOrchestrator {
       case 'coach-info':
         const coachStore = useCoachStore.getState();
         if (data.coachId) {
+          this.log('🎯 Updating coach information', {
+            name: data.name,
+            record: `${data.wins}-${data.losses}`
+          });
           coachStore.updateCoach(data.coachId, data);
         }
         break;
+        
+      default:
+        this.log(`⚠️ No routing handler for screen type: ${screenType}`);
     }
   }
 
@@ -470,26 +572,29 @@ export class ScreenshotOrchestrator {
     const triggers = {
       'game-result': () => {
         if (data.result && (data.marginOfVictory > 20 || data.upsetVictory)) {
-          // Trigger article generation for significant games
-          console.log('Triggering article for significant game result');
+          this.log('🎉 Significant game detected!', {
+            margin: data.marginOfVictory,
+            upset: data.upsetVictory
+          });
+          this.log('✨ Triggering article generation for significant game result');
         }
       },
       'season-standings': () => {
         if (data.ranking && data.ranking <= 10) {
-          // Trigger ranking analysis
-          console.log('Triggering content for top 10 ranking');
+          this.log('🏆 Top 10 ranking detected!', { ranking: data.ranking });
+          this.log('✨ Triggering content for top 10 ranking');
         }
       },
       'recruiting-board': () => {
         if (data.fiveStarCommit) {
-          // Trigger recruiting excitement content
-          console.log('Triggering content for 5-star commit');
+          this.log('⭐⭐⭐⭐⭐ 5-star commit detected!');
+          this.log('✨ Triggering content for 5-star commit');
         }
       },
       'coach-info': () => {
         if (data.hotSeat === true) {
-          // Trigger hot seat discussion
-          console.log('Triggering hot seat content');
+          this.log('🔥 Hot seat situation detected!');
+          this.log('✨ Triggering hot seat discussion content');
         }
       }
     };
@@ -497,6 +602,8 @@ export class ScreenshotOrchestrator {
     const trigger = triggers[screenType];
     if (trigger) {
       trigger();
+    } else {
+      this.log(`ℹ️ No content triggers for ${screenType}`);
     }
   }
 

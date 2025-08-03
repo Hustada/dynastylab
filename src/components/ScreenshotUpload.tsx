@@ -130,6 +130,11 @@ export function ScreenshotUpload() {
   }, []);
 
   const processScreenshots = async () => {
+    console.log('🎬 Starting screenshot processing batch', {
+      fileCount: uploadedFiles.length,
+      autoApprove
+    });
+    
     setIsProcessing(true);
     const results: Array<{ fileName: string; analysis: ScreenshotAnalysisResult }> = [];
     
@@ -139,6 +144,8 @@ export function ScreenshotUpload() {
       
       const file = uploadedFiles[i];
       const events: OrchestratorEvent[] = [];
+      
+      console.log(`📸 Processing screenshot ${i + 1}/${uploadedFiles.length}: ${file.file.name}`);
       
       setUploadedFiles(prev => prev.map((f, idx) => 
         idx === i ? { ...f, status: 'processing', processingEvents: events } : f
@@ -162,6 +169,12 @@ export function ScreenshotUpload() {
         // Clean up event listener
         unsubscribe();
         
+        console.log(`✅ Screenshot processed: ${file.file.name}`, {
+          screenType: result.screenType,
+          confidence: `${(result.confidence * 100).toFixed(1)}%`,
+          team: result.detectedTeam
+        });
+        
         // Collect results
         results.push({
           fileName: file.file.name,
@@ -178,7 +191,7 @@ export function ScreenshotUpload() {
           } : f
         ));
       } catch (error) {
-        console.error('Error processing screenshot:', error);
+        console.error(`❌ Error processing screenshot ${file.file.name}:`, error);
         setUploadedFiles(prev => prev.map((f, idx) => 
           idx === i ? { ...f, status: 'error' } : f
         ));
@@ -186,13 +199,16 @@ export function ScreenshotUpload() {
     }
     
     setIsProcessing(false);
+    console.log(`🎉 Batch processing complete. Processed ${results.length} screenshots`);
     
     // Show review modal if not auto-approving
     if (results.length > 0 && !autoApprove) {
+      console.log('📋 Showing review modal for user confirmation');
       setAnalysisResults(results);
       setShowReviewModal(true);
     } else if (results.length > 0) {
       // Auto-approve: route all data
+      console.log('🚀 Auto-approving and importing data');
       await confirmDataImport(results);
     }
   };

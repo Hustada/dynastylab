@@ -33,12 +33,27 @@ export function DataReviewModal({
     // Format data based on screen type for better readability
     switch (screenType) {
       case 'season-standings':
+        // Handle both camelCase and snake_case from GPT-4o
+        const teamName = data.teamName || data.team_name;
+        const conference = data.conference;
+        const overallRecord = data.overallRecord || data.overall_record;
+        const conferenceRecord = data.conferenceRecord || data.conference_record;
+        const ranking = data.ranking || data.current_ranking;
+        
         return (
           <div className="space-y-1">
-            <p><strong>Team:</strong> {data.teamName} ({data.conference})</p>
-            <p><strong>Overall Record:</strong> {data.overallRecord?.wins}-{data.overallRecord?.losses}</p>
-            <p><strong>Conference:</strong> {data.conferenceRecord?.wins}-{data.conferenceRecord?.losses}</p>
-            {data.ranking && <p><strong>Ranking:</strong> #{data.ranking}</p>}
+            <p><strong>Team:</strong> {teamName} ({conference})</p>
+            <p><strong>Overall Record:</strong> {
+              typeof overallRecord === 'string' 
+                ? overallRecord 
+                : overallRecord?.wins ? `${overallRecord.wins}-${overallRecord.losses}` : 'N/A'
+            }</p>
+            <p><strong>Conference:</strong> {
+              typeof conferenceRecord === 'string'
+                ? conferenceRecord
+                : conferenceRecord?.wins ? `${conferenceRecord.wins}-${conferenceRecord.losses}` : 'N/A'
+            }</p>
+            {ranking && <p><strong>Ranking:</strong> #{ranking}</p>}
           </div>
         );
       
@@ -52,12 +67,39 @@ export function DataReviewModal({
         );
       
       case 'roster-overview':
+        // Handle featured player vs array of players
+        if (data.featured_player || data.featuredPlayer) {
+          const featured = data.featured_player || data.featuredPlayer;
+          const roster = data.roster || data.players || [];
+          return (
+            <div className="space-y-1">
+              <p><strong>Featured Player:</strong> {featured.name} - {featured.position}</p>
+              {featured.statistics && (
+                <p className="text-sm">Stats: {Object.entries(featured.statistics).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
+              )}
+              {roster.length > 0 && (
+                <>
+                  <p className="text-sm font-medium mt-2">Roster ({roster.length} players):</p>
+                  {roster.slice(0, 3).map((player: any, idx: number) => (
+                    <p key={idx} className="text-sm">
+                      • {player.name} - {player.position} {player.overall ? `(${player.overall} OVR)` : ''}
+                    </p>
+                  ))}
+                  {roster.length > 3 && (
+                    <p className="text-sm text-gray-500">...and {roster.length - 3} more</p>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-1">
             <p><strong>Players Found:</strong> {Array.isArray(data) ? data.length : 0}</p>
             {Array.isArray(data) && data.slice(0, 3).map((player: any, idx: number) => (
               <p key={idx} className="text-sm">
-                • {player.name} - {player.position} ({player.overall} OVR)
+                • {player.name} - {player.position} {player.overall ? `(${player.overall} OVR)` : ''}
               </p>
             ))}
             {Array.isArray(data) && data.length > 3 && (
@@ -86,6 +128,29 @@ export function DataReviewModal({
             <p><strong>Record:</strong> {data.wins}-{data.losses}</p>
             <p><strong>Years:</strong> {data.yearsAtSchool}</p>
             <p><strong>Hot Seat:</strong> {data.hotSeat ? 'Yes 🔥' : 'No ✅'}</p>
+          </div>
+        );
+      
+      case 'player-stats':
+        const name = data.name || data.player_name;
+        const jersey = data.jerseyNumber || data.jersey_number || data.jersey;
+        const stats = data.seasonStats || data.season_stats || data.statistics || {};
+        
+        return (
+          <div className="space-y-1">
+            <p><strong>Player:</strong> {name} #{jersey}</p>
+            <p><strong>Position:</strong> {data.position}</p>
+            {data.archetype && <p><strong>Archetype:</strong> {data.archetype}</p>}
+            {Object.keys(stats).length > 0 && (
+              <>
+                <p className="font-medium text-sm mt-2">Statistics:</p>
+                {Object.entries(stats).slice(0, 4).map(([key, value]) => (
+                  <p key={key} className="text-sm">
+                    • {key.replace(/_/g, ' ')}: {value}
+                  </p>
+                ))}
+              </>
+            )}
           </div>
         );
       

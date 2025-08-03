@@ -591,16 +591,40 @@ export class ScreenshotOrchestrator {
     switch (screenType) {
       case 'season-standings':
         const seasonStore = useSeasonStore.getState();
-        if (data.overallRecord) {
+        // Handle both camelCase and snake_case from GPT-4o
+        const overallRec = data.overallRecord || data.overall_record;
+        const conferenceRec = data.conferenceRecord || data.conference_record;
+        const rank = data.ranking || data.current_ranking;
+        
+        if (overallRec) {
+          // Parse record if it's a string like "12-1"
+          let overallRecord;
+          let conferenceRecord;
+          
+          if (typeof overallRec === 'string') {
+            const [wins, losses] = overallRec.split('-').map(Number);
+            overallRecord = { wins, losses };
+          } else {
+            overallRecord = overallRec;
+          }
+          
+          if (typeof conferenceRec === 'string') {
+            const [wins, losses] = conferenceRec.split('-').map(Number);
+            conferenceRecord = { wins, losses };
+          } else {
+            conferenceRecord = conferenceRec;
+          }
+          
           this.log('📊 Updating season standings', {
-            overall: `${data.overallRecord.wins}-${data.overallRecord.losses}`,
-            conference: data.conferenceRecord ? `${data.conferenceRecord.wins}-${data.conferenceRecord.losses}` : 'N/A',
-            ranking: data.ranking || 'Unranked'
+            overall: typeof overallRec === 'string' ? overallRec : `${overallRecord.wins}-${overallRecord.losses}`,
+            conference: typeof conferenceRec === 'string' ? conferenceRec : conferenceRecord ? `${conferenceRecord.wins}-${conferenceRecord.losses}` : 'N/A',
+            ranking: rank || 'Unranked'
           });
+          
           seasonStore.updateCurrentSeason({
-            overallRecord: data.overallRecord,
-            conferenceRecord: data.conferenceRecord,
-            ranking: data.ranking
+            overallRecord,
+            conferenceRecord,
+            ranking: rank
           });
         }
         break;
@@ -631,26 +655,31 @@ export class ScreenshotOrchestrator {
       
       case 'player-stats':
         const playerStatsStore = usePlayerStore.getState();
-        if (data.name) {
+        // Handle both camelCase and snake_case
+        const playerName = data.name || data.player_name;
+        const jerseyNum = data.jerseyNumber || data.jersey_number || data.jersey;
+        const seasonStats = data.seasonStats || data.season_stats || data.statistics || {};
+        
+        if (playerName) {
           this.log('🏈 Adding individual player stats', {
-            name: data.name,
+            name: playerName,
             position: data.position,
-            jersey: data.jerseyNumber
+            jersey: jerseyNum
           });
           // Convert player-stats format to Player format
           const player: Player = {
             id: `player-${Date.now()}`,
-            name: data.name,
+            name: playerName,
             position: data.position,
-            jerseyNumber: data.jerseyNumber || 0,
-            overall: data.overall || 85,
-            year: data.year || 'JR',
+            jerseyNumber: jerseyNum || 0,
+            overall: data.overall || data.rating || 85,
+            year: data.year || data.class || 'JR',
             height: data.height || "6'0\"",
             weight: data.weight || 200,
             hometown: data.hometown || 'Unknown',
-            highSchool: data.highSchool || 'Unknown',
-            stats: data.seasonStats || {},
-            teamId: data.teamId || 'washington'
+            highSchool: data.highSchool || data.high_school || 'Unknown',
+            stats: seasonStats,
+            teamId: data.teamId || data.team_id || data.team || 'washington'
           };
           playerStatsStore.addPlayer(player);
         }

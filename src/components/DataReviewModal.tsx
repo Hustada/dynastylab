@@ -110,6 +110,73 @@ export function DataReviewModal({
     return 'Low Confidence';
   };
 
+  const getDataDestination = (screenType: string) => {
+    const destinations: Record<string, { section: string; icon: string; description: string }> = {
+      'season-standings': {
+        section: 'Dashboard',
+        icon: '📊',
+        description: 'Season records and rankings'
+      },
+      'team-stats': {
+        section: 'Dashboard',
+        icon: '📈',
+        description: 'Team statistics'
+      },
+      'game-result': {
+        section: 'Games',
+        icon: '🏈',
+        description: 'Game history and results'
+      },
+      'schedule': {
+        section: 'Games',
+        icon: '📅',
+        description: 'Season schedule'
+      },
+      'roster-overview': {
+        section: 'Players',
+        icon: '👥',
+        description: 'Team roster'
+      },
+      'player-stats': {
+        section: 'Players',
+        icon: '🌟',
+        description: 'Individual player statistics'
+      },
+      'depth-chart': {
+        section: 'Depth Chart',
+        icon: '📋',
+        description: 'Position depth'
+      },
+      'recruiting-board': {
+        section: 'Recruits',
+        icon: '⭐',
+        description: 'Recruiting class'
+      },
+      'coach-info': {
+        section: 'Coaches',
+        icon: '🎯',
+        description: 'Coaching staff info'
+      },
+      'trophy-case': {
+        section: 'Dashboard',
+        icon: '🏆',
+        description: 'Championships and awards'
+      },
+      'top25-rankings': {
+        section: 'Dashboard',
+        icon: '🏅',
+        description: 'National rankings'
+      },
+      'unknown': {
+        section: 'Review Required',
+        icon: '❓',
+        description: 'Manual review needed'
+      }
+    };
+    
+    return destinations[screenType] || destinations['unknown'];
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
@@ -121,17 +188,62 @@ export function DataReviewModal({
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-16rem)]">
+          {/* Summary of where data will go */}
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-green-900 mb-2">📍 Data Routing Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {Object.entries(
+                results.reduce((acc, r) => {
+                  const dest = getDataDestination(r.analysis.screenType);
+                  const key = dest.section;
+                  if (!acc[key]) {
+                    acc[key] = { icon: dest.icon, count: 0, types: new Set() };
+                  }
+                  acc[key].count++;
+                  acc[key].types.add(r.analysis.screenType);
+                  return acc;
+                }, {} as Record<string, { icon: string; count: number; types: Set<string> }>)
+              ).map(([section, info]) => (
+                <div key={section} className="flex items-center gap-2 text-sm">
+                  <span className="text-lg">{info.icon}</span>
+                  <div>
+                    <span className="font-medium text-green-800">{section}</span>
+                    <span className="text-green-600 ml-1">({info.count} item{info.count > 1 ? 's' : ''})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
           <div className="space-y-6">
-            {results.map((result, index) => (
+            {results.map((result, index) => {
+              const destination = getDataDestination(result.analysis.screenType);
+              return (
               <div key={index} className="border rounded-lg p-4 bg-gray-50">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-lg">
-                      {result.analysis.screenType.split('-').map(w => 
-                        w.charAt(0).toUpperCase() + w.slice(1)
-                      ).join(' ')}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-lg">
+                        {result.analysis.screenType.split('-').map(w => 
+                          w.charAt(0).toUpperCase() + w.slice(1)
+                        ).join(' ')}
+                      </h3>
+                      <span className="text-2xl">{destination.icon}</span>
+                    </div>
                     <p className="text-sm text-gray-600">{result.fileName}</p>
+                    
+                    {/* Data destination indicator */}
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
+                      <span className="text-xs font-medium text-blue-700">
+                        Will be saved to:
+                      </span>
+                      <span className="text-xs font-bold text-blue-900">
+                        {destination.section}
+                      </span>
+                      <span className="text-xs text-blue-600">
+                        ({destination.description})
+                      </span>
+                    </div>
                     
                     {/* Team detection/override */}
                     {result.analysis.screenType !== 'top25-rankings' && (
@@ -199,7 +311,7 @@ export function DataReviewModal({
                   </div>
                 )}
               </div>
-            ))}
+            )})}
           </div>
 
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
